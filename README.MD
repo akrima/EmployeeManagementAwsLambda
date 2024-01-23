@@ -13,9 +13,6 @@ Using tools:
     - AWS IAM
     - AWS CloudWatch
 
-```
-
-```
 ## Project Structure
 
 EmployeeManagementLambdaJava
@@ -54,8 +51,7 @@ EmployeeManagementLambdaJava
 ├── .gitignore
 ├── pom.xml
 └── README.md
-```
-```
+
 
 ## Configuration
 
@@ -78,9 +74,7 @@ Compile the project and deploy Lambda functions to AWS trought template.yaml fil
     - Create dynamodb table "Employee"
     - Add IAM write/read permissions to the lambdas
     - Then you can start testing lambdas
-```
 
-```
 
 ## Contributing
 
