@@ -4,6 +4,8 @@ import com.akrima.employeemanagement.*;
 import com.akrima.employeemanagement.model.Employee;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -108,13 +110,13 @@ public class EmployeeLambdaIntegrationTest {
                 });
 
         // Act again
-        ApiGatewayResponse apiGatewayResponse = new RetrieveAllEmployeesLambda(dynamoDbClient).handleRequest(null, mockContext);
+        APIGatewayProxyResponseEvent responseEvent = new RetrieveAllEmployeesLambda(dynamoDbClient).handleRequest(null, mockContext);
 
         // Assert again
-        assertEquals(200, apiGatewayResponse.statusCode());
+        assertEquals(200, responseEvent.getStatusCode());
 
         // Convert the JSON response to a list of employees
-        List<Map<String, String>> employees = objectMapper.readValue(apiGatewayResponse.body(), new TypeReference<>() {});
+        List<Map<String, String>> employees = objectMapper.readValue(responseEvent.getBody(), new TypeReference<>() {});
 
         // Verify that the response now contains the added employees
         assertEquals(2, employees.size());
@@ -141,24 +143,33 @@ public class EmployeeLambdaIntegrationTest {
                 .build();
 
         // Act
-        ApiGatewayResponse apiGatewayResponse = new RetrieveAllEmployeesLambda(faultyDynamoDbClient).handleRequest(null, mockContext);
+        APIGatewayProxyResponseEvent responseEvent = new RetrieveAllEmployeesLambda(faultyDynamoDbClient).handleRequest(null, mockContext);
 
         // Assert
-        assertEquals(500, apiGatewayResponse.statusCode());
-        assertEquals("Error retrieving all employees.", apiGatewayResponse.body());
+        assertEquals(500, responseEvent.getStatusCode());
+        assertEquals("Error retrieving all employees.", responseEvent.getBody());
     }
 
     @Test
     @Order(3)
     public void testAddEmployeeLambda() {
         // Arrange
-        Employee testEmployee = new Employee("1234", "John", "Doe", "Developer");
+        String testEmployee = """
+                {
+                  "id": "1234",
+                  "firstName": "John",
+                  "lastName": "Doe",
+                  "jobPosition": "Developer"
+                }
+                """;
+        APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent = new APIGatewayProxyRequestEvent();
+        apiGatewayProxyRequestEvent.setBody(testEmployee);
 
         // Act
-        ApiGatewayResponse apiGatewayResponse = new AddEmployeeLambda(dynamoDbClient).handleRequest(testEmployee, mockContext);
+        APIGatewayProxyResponseEvent responseEvent =  new AddEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Assert
-        assertEquals("Employee added successfully with ID: 1234", apiGatewayResponse.body());
+        assertEquals("Employee added successfully with ID: 1234", responseEvent.getBody());
 
         // Check if the employee was actually added to DynamoDB
         GetItemResponse getItemResponse = dynamoDbClient.getItem(GetItemRequest.builder()
@@ -176,14 +187,23 @@ public class EmployeeLambdaIntegrationTest {
     @Order(4)
     public void testAddEmployeeLambda_AlreadyExists() {
         // Arrange
-        Employee testEmployee = new Employee("1234", "John", "Doe", "Developer");
+        String testEmployee = """
+                {
+                  "id": "1234",
+                  "firstName": "John",
+                  "lastName": "Doe",
+                  "jobPosition": "Developer"
+                }
+                """;
+        APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent = new APIGatewayProxyRequestEvent();
+        apiGatewayProxyRequestEvent.setBody(testEmployee);
 
         // Act
-        ApiGatewayResponse apiGatewayResponse = new AddEmployeeLambda(dynamoDbClient).handleRequest(testEmployee, mockContext);
+        APIGatewayProxyResponseEvent responseEvent =  new AddEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Assert
-        assertEquals("Employee with ID 1234 already exists.", apiGatewayResponse.body());
-        assertEquals(409, apiGatewayResponse.statusCode());
+        assertEquals("Employee with ID 1234 already exists.", responseEvent.getBody());
+        assertEquals(409, responseEvent.getStatusCode());
     }
 
 
@@ -195,7 +215,16 @@ public class EmployeeLambdaIntegrationTest {
         doNothing().when(lambdaLogger).log(anyString());
 
         // Arrange
-        Employee testEmployee = new Employee("123", "John", "Doe", "Developer");
+        String testEmployee = """
+                {
+                  "id": "123",
+                  "firstName": "John",
+                  "lastName": "Doe",
+                  "jobPosition": "Developer"
+                }
+                """;
+        APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent = new APIGatewayProxyRequestEvent();
+        apiGatewayProxyRequestEvent.setBody(testEmployee);
 
         DynamoDbClient faultyDynamoDbClient = DynamoDbClient.builder()
                 .region(Region.US_EAST_1)
@@ -206,29 +235,46 @@ public class EmployeeLambdaIntegrationTest {
         AddEmployeeLambda addEmployeeLambda = new AddEmployeeLambda(faultyDynamoDbClient);
 
         // Act
-        ApiGatewayResponse apiGatewayResponse = addEmployeeLambda.handleRequest(testEmployee, mockContext);
+        APIGatewayProxyResponseEvent responseEvent =  addEmployeeLambda.handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Assert
-        assertEquals("Error adding employee.", apiGatewayResponse.body());
-        assertEquals(500, apiGatewayResponse.statusCode());
+        assertEquals("Error adding employee.", responseEvent.getBody());
+        assertEquals(500, responseEvent.getStatusCode());
     }
 
     @Test
     @Order(6)
     public void testUpdateEmployeeLambda() {
         // Arrange
-        Employee testEmployee = new Employee("1234", "John", "Doe", "Developer");
+        String testEmployee = """
+                {
+                  "id": "1234",
+                  "firstName": "John",
+                  "lastName": "Doe",
+                  "jobPosition": "Developer"
+                }
+                """;
+        APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent = new APIGatewayProxyRequestEvent();
+        apiGatewayProxyRequestEvent.setBody(testEmployee);
 
-        // Act
-        new AddEmployeeLambda(dynamoDbClient).handleRequest(testEmployee, mockContext);
+        new AddEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Update the employee
-        Employee updateEmployee = new Employee("1234", "UpdatedFirstName", "UpdatedLastName", "UpdatedPosition");
+        String updateEmployee = """
+                {
+                  "id": "1234",
+                  "firstName": "UpdatedFirstName",
+                  "lastName": "UpdatedLastName",
+                  "jobPosition": "UpdatedPosition"
+                }
+                """;
 
-        ApiGatewayResponse apiGatewayResponse = new UpdateEmployeeLambda(dynamoDbClient).handleRequest(updateEmployee, mockContext);
+        apiGatewayProxyRequestEvent.setBody(updateEmployee);
+
+        APIGatewayProxyResponseEvent responseEvent =  new UpdateEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Assert
-        assertEquals("Employee updated successfully with ID: 1234", apiGatewayResponse.body());
+        assertEquals("Employee updated successfully with ID: 1234", responseEvent.getBody());
 
         // Check if the employee was actually updated in DynamoDB
         GetItemResponse getItemResponse = dynamoDbClient.getItem(GetItemRequest.builder()
@@ -246,18 +292,27 @@ public class EmployeeLambdaIntegrationTest {
     @Order(7)
     public void testUpdateEmployeeLambda_EmployeeNotFound() {
         // Arrange
-        Employee updatedEmployee = new Employee("NonexistentId", "UpdatedFirstName", "UpdatedLastName", "UpdatedPosition");
+        String updatedEmployee = """
+                {
+                  "id": "NonexistentId",
+                  "firstName": "UpdatedFirstName",
+                  "lastName": "UpdatedLastName",
+                  "jobPosition": "UpdatedPosition"
+                }
+                """;
+        APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent = new APIGatewayProxyRequestEvent();
+        apiGatewayProxyRequestEvent.setBody(updatedEmployee);
 
-        ApiGatewayResponse apiGatewayResponse = new UpdateEmployeeLambda(dynamoDbClient).handleRequest(updatedEmployee, mockContext);
+        APIGatewayProxyResponseEvent responseEvent = new UpdateEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Assert
-        assertEquals(404, apiGatewayResponse.statusCode());
-        assertEquals("Employee with ID NonexistentId does not exist.", apiGatewayResponse.body());
+        assertEquals(404, responseEvent.getStatusCode());
+        assertEquals("Employee with ID NonexistentId does not exist.", responseEvent.getBody());
     }
 
     @Test
     @Order(8)
-    public void testUpdateEmployeeLambda_ExceptionHandling() {
+    public void testUpdateEmployeeLambda_ExceptionHandling() throws JsonProcessingException {
 
         // Mock
         doReturn(lambdaLogger).when(mockContext).getLogger();
@@ -265,6 +320,10 @@ public class EmployeeLambdaIntegrationTest {
 
         // Arrange
         Employee updatedEmployee = new Employee("1", "UpdatedFirstName", "UpdatedLastName", "UpdatedPosition");
+        String testEmployeeJson = new ObjectMapper().writeValueAsString(updatedEmployee);
+
+        APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent = new APIGatewayProxyRequestEvent();
+        apiGatewayProxyRequestEvent.setBody(testEmployeeJson);
 
         // Simuler une exception en modifiant l'URL de service de DynamoDB
         DynamoDbClient faultyDynamoDbClient = DynamoDbClient.builder()
@@ -274,11 +333,11 @@ public class EmployeeLambdaIntegrationTest {
                 .build();
 
         // Act
-        ApiGatewayResponse apiGatewayResponse = new UpdateEmployeeLambda(faultyDynamoDbClient).handleRequest(updatedEmployee, mockContext);
+        APIGatewayProxyResponseEvent responseEvent = new UpdateEmployeeLambda(faultyDynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Assert
-        assertEquals(500, apiGatewayResponse.statusCode());
-        assertEquals("Error updating employee.", apiGatewayResponse.body());
+        assertEquals(500, responseEvent.getStatusCode());
+        assertEquals("Error updating employee.", responseEvent.getBody());
     }
 
     @Test
@@ -286,16 +345,21 @@ public class EmployeeLambdaIntegrationTest {
     public void testRetrieveEmployeeLambda() throws IOException {
         // Arrange
         Employee testEmployee = new Employee("123", "John", "Doe", "Developer");
+        String testEmployeeJson = new ObjectMapper().writeValueAsString(testEmployee);
+
+        APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent = new APIGatewayProxyRequestEvent();
+        apiGatewayProxyRequestEvent.setBody(testEmployeeJson);
 
         // Act
-        new AddEmployeeLambda(dynamoDbClient).handleRequest(testEmployee, mockContext);
+        new AddEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Retrieve the employee
-        Map<String, String> input = new HashMap<>();
-        input.put("id", testEmployee.id());
+        Map<String, String> pathParameters = new HashMap<>();
+        pathParameters.put("id", testEmployee.id());
 
-        ApiGatewayResponse apiGatewayResponse = new RetrieveEmployeeLambda(dynamoDbClient).handleRequest(input, mockContext);
-        Employee resultEmployee = new ObjectMapper().readValue(apiGatewayResponse.body(), Employee.class);
+        apiGatewayProxyRequestEvent.setPathParameters(pathParameters);
+        APIGatewayProxyResponseEvent apiGatewayProxyResponseEvent = new RetrieveEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
+        Employee resultEmployee = new ObjectMapper().readValue(apiGatewayProxyResponseEvent.getBody(), Employee.class);
 
         // Assert
         assertEquals(testEmployee.id(), resultEmployee.id());
@@ -306,22 +370,27 @@ public class EmployeeLambdaIntegrationTest {
 
     @Test
     @Order(10)
-    public void testDeleteEmployeeLambda() {
+    public void testDeleteEmployeeLambda() throws JsonProcessingException {
         // Arrange
         Employee testEmployee = new Employee("123", "John", "Doe", "Developer");
+        String testEmployeeJson = new ObjectMapper().writeValueAsString(testEmployee);
+
+        APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent = new APIGatewayProxyRequestEvent();
+        apiGatewayProxyRequestEvent.setBody(testEmployeeJson);
 
         // Act
-        new AddEmployeeLambda(dynamoDbClient).handleRequest(testEmployee, mockContext);
+        new AddEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Retrieve the employee
-        Map<String, String> input = new HashMap<>();
-        input.put("id", testEmployee.id());
+        Map<String, String> pathParameters = new HashMap<>();
+        pathParameters.put("id", testEmployee.id());
+        apiGatewayProxyRequestEvent.setPathParameters(pathParameters);
 
         // Delete the employee
-        ApiGatewayResponse apiGatewayResponse = new DeleteEmployeeLambda(dynamoDbClient).handleRequest(input, mockContext);
+        APIGatewayProxyResponseEvent responseEvent =  new DeleteEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Assert
-        assertEquals("Employee with ID 123 deleted successfully.", apiGatewayResponse.body());
+        assertEquals("Employee with ID 123 deleted successfully.", responseEvent.getBody());
 
         // Check if the employee was actually deleted from DynamoDB
         GetItemResponse getItemResponse = dynamoDbClient.getItem(GetItemRequest.builder()
@@ -336,46 +405,55 @@ public class EmployeeLambdaIntegrationTest {
     @Order(11)
     public void testDeleteEmployeeLambda_IdNotProvided() {
         // Arrange
-        Map<String, String> input = new HashMap<>();
+        Map<String, String> pathParameters = new HashMap<>();
+        APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent=new APIGatewayProxyRequestEvent();
+        apiGatewayProxyRequestEvent.setPathParameters(pathParameters);
 
         // Act
-        ApiGatewayResponse apiGatewayResponse = new DeleteEmployeeLambda(dynamoDbClient).handleRequest(input, mockContext);
+        APIGatewayProxyResponseEvent responseEvent =  new DeleteEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Assert
-        assertEquals("Invalid input. Please provide an employeeId.", apiGatewayResponse.body());
-        assertEquals(400, apiGatewayResponse.statusCode());
+        assertEquals("Invalid input. Please provide an employeeId.", responseEvent.getBody());
+        assertEquals(400, responseEvent.getStatusCode());
     }
 
     @Test
     @Order(13)
     public void testDeleteEmployeeLambda_EmployeeNotExists() {
         // Arrange
-        Map<String, String> input = new HashMap<>();
-        input.put("id", "nonexistentId");
+        Map<String, String> pathParameters = new HashMap<>();
+        pathParameters.put("id", "nonexistentId");
+        APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent=new APIGatewayProxyRequestEvent();
+        apiGatewayProxyRequestEvent.setPathParameters(pathParameters);
 
         // Act
-        ApiGatewayResponse apiGatewayResponse = new DeleteEmployeeLambda(dynamoDbClient).handleRequest(input, mockContext);
+        APIGatewayProxyResponseEvent responseEvent =  new DeleteEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Assert
-        assertEquals("Employee with ID nonexistentId does not exist.", apiGatewayResponse.body());
-        assertEquals(404, apiGatewayResponse.statusCode());
+        assertEquals("Employee with ID nonexistentId does not exist.", responseEvent.getBody());
+        assertEquals(404, responseEvent.getStatusCode());
     }
 
     @Test
     @Order(14)
-    public void testDeleteEmployeeLambda_ExceptionHandling() {
+    public void testDeleteEmployeeLambda_ExceptionHandling() throws JsonProcessingException {
         // Mock
         doReturn(lambdaLogger).when(mockContext).getLogger();
         doNothing().when(lambdaLogger).log(anyString());
 
         // Arrange
         Employee testEmployee = new Employee("123", "John", "Doe", "Developer");
+        String testEmployeeJson = new ObjectMapper().writeValueAsString(testEmployee);
+
+        APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent = new APIGatewayProxyRequestEvent();
+        apiGatewayProxyRequestEvent.setBody(testEmployeeJson);
 
         // Act
-        new AddEmployeeLambda(dynamoDbClient).handleRequest(testEmployee, mockContext);
+        new AddEmployeeLambda(dynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
-        Map<String, String> input = new HashMap<>();
-        input.put("id", "123");
+        Map<String, String> pathParameters = new HashMap<>();
+        pathParameters.put("id", "123");
+        apiGatewayProxyRequestEvent.setPathParameters(pathParameters);
 
         // Simuler une exception en modifiant l'URL de service de DynamoDB
         DynamoDbClient faultyDynamoDbClient = DynamoDbClient.builder()
@@ -384,11 +462,11 @@ public class EmployeeLambdaIntegrationTest {
                 .endpointOverride(URI.create("http://localhost:12345")) // URL incorrecte pour simuler une exception
                 .build();
 
-        ApiGatewayResponse apiGatewayResponse = new DeleteEmployeeLambda(faultyDynamoDbClient).handleRequest(input, mockContext);
+        APIGatewayProxyResponseEvent responseEvent =  new DeleteEmployeeLambda(faultyDynamoDbClient).handleRequest(apiGatewayProxyRequestEvent, mockContext);
 
         // Assert
-        assertEquals("Error deleting employee.", apiGatewayResponse.body());
-        assertEquals(500, apiGatewayResponse.statusCode());
+        assertEquals("Error deleting employee.", responseEvent.getBody());
+        assertEquals(500, responseEvent.getStatusCode());
     }
 
 

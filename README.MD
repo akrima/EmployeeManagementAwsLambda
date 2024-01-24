@@ -12,6 +12,7 @@ Using tools:
     - AWS GateWay
     - AWS IAM
     - AWS CloudWatch
+    - AWS CloudFormation
 
 ## Project Structure
 
@@ -71,9 +72,11 @@ Compile the project and deploy Lambda functions to AWS trought template.yaml fil
     - Set up aws cli via : aws configure command if it's not done yet
     - Build your application: mvn clean package
     - Make sure to update template.yaml before deploying your application using SAM : sam deploy --guided
+        -> To deploy all your lambdas on dev ou ti env : sam deploy --guided --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
     - Create dynamodb table "Employee"
     - Add IAM write/read permissions to the lambdas
     - Then you can start testing lambdas
+    - You can test you lamdas locally : sam local start-api
 
 
 ## Contributing

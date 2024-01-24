@@ -3,6 +3,8 @@ package com.akrima.employeemanagement;
 import com.akrima.employeemanagement.model.Employee;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
@@ -10,7 +12,7 @@ import software.amazon.awssdk.services.dynamodb.model.*;
 import java.util.HashMap;
 import java.util.Map;
 
-public class RetrieveEmployeeLambda implements RequestHandler<Map<String, String>, ApiGatewayResponse> {
+public class RetrieveEmployeeLambda implements RequestHandler<APIGatewayProxyRequestEvent,  APIGatewayProxyResponseEvent> {
 
     private static final String DYNAMO_DB_TABLE_NAME = "Employee";
     private final DynamoDbClient dynamoDbClient;
@@ -24,17 +26,19 @@ public class RetrieveEmployeeLambda implements RequestHandler<Map<String, String
     }
 
     @Override
-    public ApiGatewayResponse handleRequest(Map<String, String> input, Context context) {
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent, Context context) {
+        APIGatewayProxyResponseEvent responseEvent = new APIGatewayProxyResponseEvent();
         try {
-            // Check if the employee exists
-            if (!input.containsKey("id")) {
-                return new ApiGatewayResponse("Invalid input. Please provide an employeeId.", 400);
+
+            // Check if the id is in the url path
+            Map<String, String> pathParameters = apiGatewayProxyRequestEvent.getPathParameters();
+            if (pathParameters == null || pathParameters.size() != 1) {
+                return responseEvent.withStatusCode(400).withBody("Invalid input. Please provide an employeeId.");
             }
-
-            String employeeId = input.get("id");
-
+            String employeeId = pathParameters.get("id");
+            // Check if the employee exists
             if (!employeeExists(employeeId)) {
-                return new ApiGatewayResponse("Employee with ID " + employeeId + " does not exist.", 404);
+                return responseEvent.withStatusCode(404).withBody("Employee with ID " + employeeId + " does not exist.");
             }
 
             // If the employee exists, retrieve their information from DynamoDB
@@ -55,11 +59,11 @@ public class RetrieveEmployeeLambda implements RequestHandler<Map<String, String
                     item.get("lastName").s(),
                     item.get("jobPosition").s()
             );
-            return new ApiGatewayResponse(new ObjectMapper().writeValueAsString(retrievedEmployee), 200);
+            return responseEvent.withStatusCode(200).withBody(new ObjectMapper().writeValueAsString(retrievedEmployee));
         } catch (Exception e) {
             // Handle any errors
             context.getLogger().log("Error retrieving employee: " + e.getMessage());
-            return new ApiGatewayResponse("Error retrieving employee.", 500);
+            return responseEvent.withStatusCode(505).withBody("Error retrieving employee.");
         }
     }
 

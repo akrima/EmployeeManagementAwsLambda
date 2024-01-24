@@ -3,6 +3,7 @@ package com.akrima.employeemanagement;
 import com.akrima.employeemanagement.model.Employee;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -13,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class RetrieveAllEmployeesLambda implements RequestHandler<Void, ApiGatewayResponse> {
+public class RetrieveAllEmployeesLambda implements RequestHandler<Void, APIGatewayProxyResponseEvent> {
 
     private static final String DYNAMO_DB_TABLE_NAME = "Employee";
     private final DynamoDbClient dynamoDbClient;
@@ -27,17 +28,18 @@ public class RetrieveAllEmployeesLambda implements RequestHandler<Void, ApiGatew
     }
 
     @Override
-    public ApiGatewayResponse handleRequest(Void input, Context context) {
+    public APIGatewayProxyResponseEvent handleRequest(Void input, Context context) {
+        APIGatewayProxyResponseEvent responseEvent = new APIGatewayProxyResponseEvent();
         try {
             List<Employee> allEmployees = getAllEmployeesFromDynamoDb();
 
             // Convert the list of employees to JSON
             String jsonResponse = new ObjectMapper().writeValueAsString(allEmployees);
 
-            return new ApiGatewayResponse(jsonResponse, 200);
+            return responseEvent.withStatusCode(200).withBody(jsonResponse);
         } catch (Exception e) {
             context.getLogger().log("Error retrieving all employees: " + e.getMessage());
-            return new ApiGatewayResponse("Error retrieving all employees.", 500);
+            return responseEvent.withStatusCode(500).withBody("Error retrieving all employees.");
         }
     }
 

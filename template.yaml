@@ -2,7 +2,45 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 Description: Employee Management Lambda Functions
 
+Parameters:
+  YourTableName:
+    Type: String
+    Default: Employee
+    Description: The name of your DynamoDB table
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, ti, preprod]
+    Description: Specify the deployment environment (dev, ti, preprod)
+
 Resources:
+  # IAM Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: crud--aws-lambda-employee-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess
+      Policies:
+        - PolicyName: AWSLambdaEmployeeInvokePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: '*'
+
+  # Lambda functions
   AddEmployeeFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -11,6 +49,7 @@ Resources:
       CodeUri: target/EmployeeManagementLambdaJava-0.0.1-SNAPSHOT.jar
       MemorySize: 512
       Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
 
   UpdateEmployeeFunction:
     Type: AWS::Serverless::Function
@@ -20,6 +59,7 @@ Resources:
       CodeUri: target/EmployeeManagementLambdaJava-0.0.1-SNAPSHOT.jar
       MemorySize: 512
       Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
 
   RetrieveAllEmployeesFunction:
     Type: AWS::Serverless::Function
@@ -29,6 +69,7 @@ Resources:
       CodeUri: target/EmployeeManagementLambdaJava-0.0.1-SNAPSHOT.jar
       MemorySize: 512
       Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
 
   RetrieveEmployeeFunction:
     Type: AWS::Serverless::Function
@@ -38,6 +79,7 @@ Resources:
       CodeUri: target/EmployeeManagementLambdaJava-0.0.1-SNAPSHOT.jar
       MemorySize: 512
       Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
 
   DeleteEmployeeFunction:
     Type: AWS::Serverless::Function
@@ -47,3 +89,65 @@ Resources:
       CodeUri: target/EmployeeManagementLambdaJava-0.0.1-SNAPSHOT.jar
       MemorySize: 512
       Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  # API Gateway
+  EmployeeGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'OPTIONS,GET,POST,PUT,DELETE'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      DefinitionBody:
+        swagger: '2.0'
+        info:
+          title: 'Employee Gateway'
+          version: '1.0'
+        paths:
+          /addEmployee:
+            post:
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AddEmployeeFunction.Arn}/invocations
+                httpMethod: POST
+                type: aws_proxy
+              responses: {}
+
+          /updateEmployee:
+            post:
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateEmployeeFunction.Arn}/invocations
+                httpMethod: PUT
+                type: aws_proxy
+              responses: {}
+
+          /retrieveAllEmployees:
+            get:
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveAllEmployeesFunction.Arn}/invocations
+                httpMethod: GET
+                type: aws_proxy
+              responses: {}
+
+          /retrieveEmployee/{id}:
+            get:
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveEmployeeFunction.Arn}/invocations
+                httpMethod: GET
+                type: aws_proxy
+              responses: {}
+
+          /deleteEmployee/{id}:
+            delete:
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DeleteEmployeeFunction.Arn}/invocations
+                httpMethod: DELETE
+                type: aws_proxy
+              responses: {}
+  

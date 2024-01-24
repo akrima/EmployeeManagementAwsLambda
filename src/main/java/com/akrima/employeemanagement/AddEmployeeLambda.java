@@ -3,12 +3,15 @@ package com.akrima.employeemanagement;
 import com.akrima.employeemanagement.model.Employee;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
 import java.util.Map;
 
-public class AddEmployeeLambda implements RequestHandler<Employee, ApiGatewayResponse> {
+public class AddEmployeeLambda implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
     private static final String DYNAMO_DB_TABLE_NAME = "Employee";
     private final DynamoDbClient dynamoDbClient;
@@ -23,11 +26,13 @@ public class AddEmployeeLambda implements RequestHandler<Employee, ApiGatewayRes
     }
 
     @Override
-    public ApiGatewayResponse handleRequest(Employee newEmployee, Context context) {
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent, Context context) {
+        APIGatewayProxyResponseEvent responseEvent=new APIGatewayProxyResponseEvent();
         try {
+            Employee newEmployee = new ObjectMapper().readValue(apiGatewayProxyRequestEvent.getBody(), Employee.class);
             // Check if the employee already exists
             if (employeeExists(newEmployee.id())) {
-                return new ApiGatewayResponse("Employee with ID " + newEmployee.id() + " already exists.", 409);
+                return responseEvent.withStatusCode(409).withBody("Employee with ID " + newEmployee.id() + " already exists.");
             }
 
             // If the employee doesn't exist, add them to DynamoDB
@@ -36,11 +41,11 @@ public class AddEmployeeLambda implements RequestHandler<Employee, ApiGatewayRes
                     .item(employeeToDynamoDbItem(newEmployee))
                     .build());
 
-            return new ApiGatewayResponse("Employee added successfully with ID: " + newEmployee.id(), 201);
+            return responseEvent.withStatusCode(201).withBody("Employee added successfully with ID: " + newEmployee.id());
         } catch (Exception e) {
             // Handle any errors
             context.getLogger().log("Error adding employee: " + e.getMessage());
-            return new ApiGatewayResponse("Error adding employee.", 500);
+            return responseEvent.withStatusCode(500).withBody("Error adding employee.");
         }
     }
 
